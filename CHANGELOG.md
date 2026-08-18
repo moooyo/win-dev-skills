@@ -25,6 +25,10 @@ The `version-bump` and `changelog-entry` CI jobs enforce this.
 
 ### Changed
 
+- Replaced `winui-wpf-migration` with a deployment-aware, staged migration
+  playbook generalized from PowerToys experience, with on-demand references for
+  project architecture, API/XAML mapping, threading/windowing, and imaging.
+
 ### Fixed
 
 ### Removed
