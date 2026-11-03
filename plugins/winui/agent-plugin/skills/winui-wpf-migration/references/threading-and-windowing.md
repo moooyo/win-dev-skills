@@ -183,7 +183,59 @@ int y = display.WorkArea.Y +
 appWindow.Move(new Windows.Graphics.PointInt32(x, y));
 ```
 
-An existing application may already use a helper such as WinUIEx. Reuse it if it is an approved dependency and its behavior fits; do not add it as a universal migration requirement.
+## Optional WinUIEx Window Base
+
+When the application already uses WinUIEx, or its window requirements have led the project to select that library, `WindowEx` exposes common window settings directly. Keep the native `Window`/`AppWindow` approach above when it fits the project; adopting WinUIEx does not require changing the deployment model.
+
+Change both the XAML root and its code-behind base class:
+
+```xml
+<winuiex:WindowEx
+    x:Class="MyApp.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:MyApp.Views"
+    xmlns:winuiex="using:WinUIEx"
+    MinWidth="480"
+    MinHeight="320"
+    IsResizable="True"
+    IsMinimizable="True"
+    IsMaximizable="True"
+    IsAlwaysOnTop="False"
+    IsTitleBarVisible="True">
+    <views:MainPage />
+</winuiex:WindowEx>
+```
+
+```csharp
+using WinUIEx;
+
+namespace MyApp;
+
+public sealed partial class MainWindow : WindowEx
+{
+    public MainWindow()
+    {
+        InitializeComponent();
+        this.CenterOnScreen(width: 800, height: 600);
+    }
+}
+```
+
+Keep `DataContext`, local resources, and visual states on the hosted view. `WindowEx` remains a `Window`, not a `FrameworkElement`.
+
+| WPF requirement | WinUIEx option |
+|---|---|
+| Window size and minimum/maximum bounds | `Width`/`Height`, `MinWidth`/`MinHeight`, `MaxWidth`/`MaxHeight`, in device-independent pixels (DIPs). |
+| `ResizeMode` and caption-button restrictions | Set `IsResizable`, `IsMinimizable`, and `IsMaximizable` separately to preserve the intended behavior. |
+| `Topmost` | `IsAlwaysOnTop`. |
+| Standard title-bar visibility | `IsTitleBarVisible`; custom chrome still needs its drag regions and caption behavior. |
+| Center on the current monitor | `CenterOnScreen()`; optional width/height arguments use DIPs, unlike the physical pixels accepted by `AppWindow`. |
+| Restore window placement across sessions | A stable `PersistenceId`, set before first activation, with persistence storage appropriate to the deployment model. |
+
+For example, set `PersistenceId = "MainWindow";` before the first `Activate()` only when restoring placement is part of the application's behavior. Center the initial window before activation as above; do not center it again after saved placement is restored. The built-in restoration depends on the monitor layout remaining unchanged.
+
+Packaged applications can use WinUIEx's default `ApplicationData` storage. For an unpackaged application, initialize `WindowManager.PersistenceStorage` from application-owned persisted data before any participating window opens, and save the updated dictionary across sessions. Preserve existing settings contracts when adding this storage; do not change packaging to enable persistence.
 
 ## Title Bars and Presenters
 
@@ -278,3 +330,6 @@ Do not copy a `Program.cs` from another application without matching its Windows
 - [Async return types and `async void`](https://learn.microsoft.com/dotnet/csharp/asynchronous-programming/async-return-types#void-return-type)
 - [Windows App SDK 1.8 release notes](https://learn.microsoft.com/windows/apps/windows-app-sdk/release-notes/windows-app-sdk-1-8)
 - [FileOpenPicker(WindowId) constructor](https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.windows.storage.pickers.fileopenpicker.-ctor)
+- [WinUIEx window base and XAML setup](https://dotmorten.github.io/WinUIEx/concepts/WindowEx.html)
+- [WinUIEx `CenterOnScreen`](https://dotmorten.github.io/WinUIEx/api/WinUIEx.WindowExtensions.CenterOnScreen.html)
+- [WinUIEx `PersistenceId`](https://dotmorten.github.io/WinUIEx/api/WinUIEx.WindowManager.PersistenceId.html) and [`PersistenceStorage`](https://dotmorten.github.io/WinUIEx/api/WinUIEx.WindowManager.PersistenceStorage.html)

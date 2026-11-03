@@ -1,6 +1,6 @@
 ---
 name: winui-wpf-migration
-description: "Plan and execute WPF-to-WinUI 3 migrations for C#/.NET desktop apps. Use when porting WPF XAML, System.Windows APIs, windows and dialogs, Dispatcher, localization, imaging, MVVM, project files, packaging, or migration regressions while preserving behavior and deployment choices."
+description: "Migrate WPF apps and controls to WinUI 3 while preserving deployment and behavior: XAML, MVVM, threading, windows, resources, imaging, and project files. Use for WPF-to-WinUI porting or migration regressions. Not for apps that only reference the Windows App SDK."
 ---
 
 # WPF to WinUI 3 Migration
@@ -15,7 +15,7 @@ Treat this as an application-platform migration, not a namespace replacement. Pr
 - Diagnose a partially migrated application that builds, launches, or behaves incorrectly.
 - Plan a staged migration where WPF and WinUI projects temporarily coexist.
 
-For control selection and visual design, also use `winui-design` and search its current samples before choosing a replacement. For build and launch verification, use `winui-dev-workflow`; follow the repository's own validation restrictions. Use `winui-packaging` only when packaging or distribution is actually in scope.
+For control selection and visual design, use `winui-design` and `winapp find-ui` before choosing a replacement. For project scaffolding, target SDK and per-app analyzer setup, and build/launch verification, use `winui-dev-workflow` (WinApp CLI 0.7+). Keep the audited deployment and compatibility choices when following those workflows, and follow the repository's validation restrictions. Use `winui-packaging` only when packaging or distribution is actually in scope.
 
 ## 1. Establish the Migration Contract
 
@@ -57,6 +57,16 @@ Classify each item as one of:
 - Deployment, activation, localization, or persistence contract.
 - Intentional compatibility boundary that will remain outside the WinUI project.
 
+Before implementing a target API, check the restored WinUI project's exact references rather than the old WPF project or machine SDK. With WinApp CLI 0.7+, run from the target app directory:
+
+```powershell
+winapp find-api DispatcherQueue --json --project-dir .
+winapp find-api members DispatcherQueue --filter TryEnqueue --json --project-dir .
+winapp find-api check-property ListView ItemsSource SelectionMode --json --project-dir .
+```
+
+Use either `--project-dir <app-directory>` or `--project <name>` to select a project, never both. See `winui-design` for sample discovery and API checks. If the lookup tool is unavailable, inspect the target packages and official API documentation and report any unverified assumptions.
+
 ## 3. Choose a Safe Migration Shape
 
 - Prefer a parallel WinUI application project for medium or large migrations when it keeps the existing WPF app runnable while shared logic moves behind UI-neutral libraries.
@@ -64,6 +74,7 @@ Classify each item as one of:
 - Keep domain models and services UI-neutral. Do not make shared libraries depend on WinUI merely to remove WPF.
 - If WPF and WinUI must coexist temporarily, document the boundary, owner, and removal condition. Do not leave `<UseWPF>true</UseWPF>` or WPF framework references in the final WinUI application accidentally.
 - Preserve assembly names, root namespaces, resource identifiers, and serialized names when external callers or upgrades depend on them.
+- Check existing window base classes and approved helper libraries before replacing WPF window properties; see [Threading and Windowing](references/threading-and-windowing.md).
 
 For project, lifecycle, MVVM, localization, and compatibility details, read [Project and Application Migration](references/project-and-application-migration.md).
 
@@ -85,6 +96,8 @@ After each slice, run only the repository-approved checks needed to prove that s
 ## 5. Apply Semantic Mappings
 
 Do not perform a repository-wide `System.Windows` → `Microsoft.UI.Xaml` replacement. Some names move directly; others change behavior or have no equivalent.
+
+For state-dependent UI, choose visual states, direct binding, or a converter already used by the project before adding a custom converter.
 
 Use these references on demand:
 
@@ -115,4 +128,5 @@ Use these references on demand:
 - [ ] Settings, serialized data, command-line behavior, activation, and other external contracts remain compatible.
 - [ ] Imaging output, metadata, orientation, alpha, color handling, and error cases are validated when imaging changed.
 - [ ] Tests cover behavior rather than only proving that namespaces were replaced.
+- [ ] Intended AOT/trimming behavior is checked through the publish/run path in `winui-dev-workflow` and `winui-packaging`'s `references/sourcegen-patterns.md`; an ordinary Release build/run still uses JIT and does not prove AOT compatibility.
 - [ ] Repository-approved build/run/package checks pass, or skipped checks are reported with the governing restriction.

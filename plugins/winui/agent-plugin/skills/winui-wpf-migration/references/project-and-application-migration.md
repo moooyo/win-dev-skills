@@ -148,11 +148,18 @@ WinUI 3 does not require CommunityToolkit.Mvvm. Preserve the existing MVVM frame
 If replacing custom observable/command infrastructure is in scope, migrate behavior rather than only syntax. First confirm the repository's C# language version, compiler/IDE, and CommunityToolkit.Mvvm version. When they support the current partial-property generator syntax, prefer it over the older field-backed pattern:
 
 ```csharp
+using System.Text.Json.Serialization;
+
 public partial class EditorViewModel : ObservableObject
 {
     [ObservableProperty]
+    [JsonPropertyName("document_name")]
+    [NotifyPropertyChangedFor(nameof(DisplayName))]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    public partial bool IsDirty { get; set; }
+    public partial string Name { get; set; } = "Untitled";
+
+    [JsonIgnore]
+    public string DisplayName => Name.Trim();
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     private void Save()
@@ -160,11 +167,13 @@ public partial class EditorViewModel : ObservableObject
         // Persist changes.
     }
 
-    private bool CanSave() => IsDirty;
+    private bool CanSave() => !string.IsNullOrWhiteSpace(Name);
 }
 ```
 
-If the existing toolchain does not support partial properties, keep the compatible pattern temporarily or make the compiler/Toolkit upgrade an explicit, separately validated part of the migration. Do not silently raise the language or package baseline just to copy this example; field-backed generator syntax can also carry newer AOT/source-generator warnings that should be tracked.
+Put `[JsonPropertyName]` directly on the partial property; do not carry over `[property: JsonPropertyName(...)]` from the field-backed form. Move the old default value into the property initializer and keep dependent-property and command notifications, such as `[NotifyPropertyChangedFor]` and `[NotifyCanExecuteChangedFor]`.
+
+If the existing toolchain does not support partial properties, keep the compatible pattern temporarily or make the compiler/Toolkit upgrade an explicit, separately validated part of the migration. Do not silently raise the language or package baseline just to copy this example. On WinUI/WinRT targets, field-backed `[ObservableProperty]` can report `MVVMTK0045` for AOT compatibility. Respect the repository's warning-as-error settings and validate the intended publish path rather than suppressing the diagnostic.
 
 During conversion, preserve:
 
@@ -201,6 +210,19 @@ Example:
 ```
 
 For strings requested in code, use the resource API and map appropriate to the project. Avoid resolving UI resources in static field initializers because tests, CLI paths, or early process startup may run before the resource context is ready. Delay lookup until the application/resource environment exists.
+
+## CLI Package Upgrades
+
+A WPF-to-WinUI migration does not require upgrading System.CommandLine. If upgrading to System.CommandLine 2.0 is also in scope, pass the option name and aliases to `Option<T>` and set `Description` separately. A second string argument is an alias, not a description:
+
+```csharp
+var destination = new System.CommandLine.Option<string>("--destination", "-d")
+{
+    Description = resourceLoader.GetString("DestinationDescription"),
+};
+```
+
+Use the application's initialized resource accessor for the description. Also audit parsing, handlers, and invocation APIs against the chosen package version. Preserve published option names, aliases, defaults, and exit codes; compare help output and representative invocations after the package upgrade.
 
 ## Preserve Compatibility Contracts
 
